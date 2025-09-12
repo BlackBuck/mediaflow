@@ -1,5 +1,13 @@
 version: '3.8'
 services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
   backend:
     build: .
     container_name: mediaflow-backend
@@ -9,4 +17,31 @@ services:
       - ./uploads:/app/uploads
     environment:
       - TZ=UTC
+      - REDIS_ADDR=redis:6379
+    restart: unless-stopped
+    depends_on:
+      - redis
+  worker:
+    build: .
+    container_name: mediaflow-worker
+    entrypoint: ["/app/worker"]
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - redis
+    environment:
+      - TZ=UTC
+      - REDIS_ADDR=redis:6379
+    restart: unless-stopped
+  asynqmon:
+    image: hibiken/asynqmon:latest
+    container_name: asynqmon
+    ports:
+      - "8080:8080"
+    environment:
+      - ASYNQ_MON_REDIS_ADDR=redis:6379
+      - ASYNQ_MON_REDIS_URL=redis://redis:6379
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
     restart: unless-stopped
